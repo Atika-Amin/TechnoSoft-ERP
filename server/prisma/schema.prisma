@@ -1,0 +1,105 @@
+// ─────────────────────────────────────────────────────────────
+// Technosoft database schema (SQL Server)
+// Run `npx prisma migrate dev` after changing this file.
+// ─────────────────────────────────────────────────────────────
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "sqlserver"
+}
+
+// Users who can log in
+model User {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique @db.VarChar(50)
+  passwordHash String   @db.VarChar(100)
+  fullName     String   @db.NVarChar(100)
+  role         String   @default("USER") @db.VarChar(20) // ADMIN | USER
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────────────────────
+// The two tables below copy the FoxPro tables EXACTLY:
+// same table names, same column names, same column order, same number codes.
+// @map("ledcode") = the real column name in SQL Server;
+// the name on the left (code) is just the friendlier name used in TypeScript.
+// ─────────────────────────────────────────────────────────────
+
+// FoxPro table: lcodes. Same table and column names as the old system,
+// with roomy types so the system can grow (old FoxPro widths are only noted in docs).
+model Account {
+  code           String   @id @map("ledcode") @db.VarChar(20)                // ledger code (padded to at least 6 digits)
+  name           String   @map("ledname") @db.NVarChar(255)                  // ledger name
+  nature         Int      @map("lednat")                                     // 1 Assets, 2 Liability, 3 Income, 4 Expense
+  statement      Int      @default(0) @map("tmpa")                           // 0 none, 1 Trading, 2 Manufacturing, 3 Profit/Loss, 4 P/L Appropriation
+  level          Int      @map("ledlabel")                                   // 1 Group, 2 Sub group, 3 Ledger
+  parentCode     String   @default("") @map("undergrp") @db.VarChar(20)      // code of the parent ("" for groups)
+  parentLevel    Int      @default(0) @map("underlabel")                     // ledlabel of the parent
+  ledgerType     Int      @default(5) @map("codesign")                       // 1 Cash, 2 Bank, 3 Store, 4 Party, 5 None, 6 Project
+  openingBalance Decimal  @default(0) @map("op_bal") @db.Decimal(18, 2)
+  totalDebit     Decimal  @default(0) @map("tot_debit") @db.Decimal(18, 2)   // filled by vouchers
+  totalCredit    Decimal  @default(0) @map("tot_credit") @db.Decimal(18, 2)  // filled by vouchers
+  balance        Decimal  @default(0) @map("thisbal") @db.Decimal(18, 2)     // filled by vouchers
+  remarks1       String   @default("") @map("rem1") @db.NVarChar(500)
+  remarks2       String   @default("") @map("rem2") @db.NVarChar(500)
+  entryDate      DateTime @default(now()) @map("entdate")                    // date of last save
+  printOrder     Int      @default(0) @map("printsl")
+
+  @@index([parentCode])
+  @@index([level])
+  @@map("lcodes")
+}
+
+// FoxPro table: jprofile (projects / jobs), same column names and order as the old table
+model Project {
+  code           String    @id @map("jcode") @db.VarChar(20)                // job code 00001, 00002…
+  name           String    @map("jname") @db.NVarChar(255)                  // job name (= ledger name)
+  address1       String    @default("") @map("jadd1") @db.NVarChar(255)
+  address2       String    @default("") @map("jadd2") @db.NVarChar(255)
+  phone          String    @default("") @map("phone") @db.VarChar(50)
+  startDate      DateTime? @map("startdate") @db.Date
+  endDate        DateTime? @map("enddate") @db.Date
+  value          Decimal   @default(0) @map("valued") @db.Decimal(18, 2)     // meaning to confirm
+  remarks        String    @default("") @map("remarks") @db.NVarChar(500)
+  isDefault      Int       @default(0) @map("defalt")                       // 1 = default job for new voucher lines
+  accountCode    String    @unique @map("acccode") @db.VarChar(20)          // the PROJECT-type ledger it belongs to
+  pettyCode      String    @default("") @map("petycode") @db.VarChar(20)    // meaning to confirm
+  openingBalance Decimal   @default(0) @map("op_bal") @db.Decimal(18, 2)
+  necnm          String    @default("") @map("necnm") @db.NVarChar(255)     // meaning to confirm
+  actnon         Int       @default(0) @map("actnon")                       // meaning to confirm
+
+  @@map("jprofile")
+}
+
+// FoxPro table: trction (voucher transactions). One row = one debit + one credit of the same amount.
+model VoucherEntry {
+  id            Int      @id @default(autoincrement())                      // new: row id (FoxPro had none)
+  date          DateTime @map("vdate") @db.Date                             // voucher date
+  voucherNo     String   @map("voucher") @db.VarChar(20)                    // CP00012, CR00003, BP00007…
+  debitCode     String   @map("drcode") @db.VarChar(20)                     // account debited
+  creditCode    String   @map("crcode") @db.VarChar(20)                     // account credited
+  amount        Decimal  @map("taka") @db.Decimal(18, 2)
+  jobCode       String   @default("") @map("jcode") @db.VarChar(20)         // project job
+  debitRemark   String   @default("") @map("dremark") @db.NVarChar(500)
+  creditRemark  String   @default("") @map("cremark") @db.NVarChar(500)
+  dateVoucherNo String   @map("datevno") @db.VarChar(40)                    // yyyymmdd + voucher no
+  debitProject  String   @default("000000") @map("projacc") @db.VarChar(20) // project ledger on the debit side
+  creditProject String   @default("000000") @map("projaccr") @db.VarChar(20) // project ledger on the credit side
+  type          Int      @map("vtype")                                      // 1 CP, 2 CR, 4 BP, 5 BR
+  project       String   @default("") @map("prject") @db.VarChar(20)        // project ledger
+
+  @@index([voucherNo])
+  @@index([date])
+  @@index([debitCode])
+  @@index([creditCode])
+  @@map("trction")
+}
