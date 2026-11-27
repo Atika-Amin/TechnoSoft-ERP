@@ -93,7 +93,7 @@ export default function MainLayout() {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50 font-sans antialiased">
+    <div className="flex min-h-screen bg-slate-50 font-sans antialiased print:bg-white">
       {/* mobile overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-30 bg-slate-900/50 lg:hidden" onClick={() => setSidebarOpen(false)} />
@@ -101,7 +101,7 @@ export default function MainLayout() {
 
       {/* ── Sidebar ── */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-[#1e1b4b] text-indigo-100 transition-transform lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-[#1e1b4b] print:hidden text-indigo-100 transition-transform lg:static lg:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -161,7 +161,7 @@ export default function MainLayout() {
 
       {/* ── Main ── */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-16 items-center gap-4 border-b border-slate-200 bg-white px-4 lg:px-8">
+        <header className="sticky top-0 z-20 flex h-16 print:hidden items-center gap-4 border-b border-slate-200 bg-white px-4 lg:px-8">
           <button className="text-slate-500 lg:hidden" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
             <Menu className="h-5 w-5" />
           </button>
@@ -196,7 +196,7 @@ export default function MainLayout() {
           </div>
         </header>
 
-        <main className="flex-1 p-4 lg:p-8">
+        <main className="flex-1 p-4 lg:p-8 print:p-0">
           <Outlet />
         </main>
       </div>

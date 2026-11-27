@@ -65,3 +65,37 @@ export const createVoucher = (input: SaveVoucherInput) =>
 
 export const updateVoucher = (voucherNo: string, input: SaveVoucherInput) =>
   api.put<SaveVoucherResult>(`/vouchers/${voucherNo}`, input).then((r) => r.data);
+
+// ── Journal voucher (JR): identified by number + date ──
+
+export interface JournalLine {
+  accountCode: string;
+  debit: number;
+  credit: number;
+  remarks: string;
+  jobCode: string | null;
+}
+
+export interface Journal {
+  voucherNo: string;
+  date: string;
+  lines: (JournalLine & { accountName: string })[];
+}
+
+export interface SaveJournalInput {
+  number?: string;
+  date: string;
+  lines: JournalLine[];
+}
+
+export const getNextJournalNo = (date: string) =>
+  api.get<{ voucherNo: string }>('/vouchers/journal/next-number', { params: { date } }).then((r) => r.data.voucherNo);
+
+export const getJournal = (voucherNo: string, date: string) =>
+  api.get<Journal>(`/vouchers/journal/${voucherNo}`, { params: { date } }).then((r) => r.data);
+
+export const createJournal = (input: SaveJournalInput) =>
+  api.post<SaveVoucherResult>('/vouchers/journal', input).then((r) => r.data);
+
+export const updateJournal = (voucherNo: string, input: SaveJournalInput) =>
+  api.put<SaveVoucherResult>(`/vouchers/journal/${voucherNo}`, input).then((r) => r.data);

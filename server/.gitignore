@@ -2,29 +2,3 @@ node_modules
 dist
 .env
 src/generated
-# Dependencies
-node_modules/
-
-# Build output
-dist/
-build/
-
-# Secrets: never upload passwords
-.env
-.env.*
-!.env.example
-
-# Generated Prisma client (rebuilt with npx prisma generate)
-server/src/generated/
-
-# Logs and editor files
-*.log
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db
-
-# Old FoxPro data, if copied into the project
-*.dbf
-*.cdx
-*.fpt

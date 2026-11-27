@@ -28,11 +28,11 @@ const TYPES: {
   isBank: boolean;
   isPayment: boolean;
 }[] = [
-    { key: 'CP', label: 'Cash Payment', hint: 'Money paid out in cash', isBank: false, isPayment: true },
-    { key: 'CR', label: 'Cash Received', hint: 'Money received in cash', isBank: false, isPayment: false },
-    { key: 'BP', label: 'Cheque Payment', hint: 'Paid from a bank account', isBank: true, isPayment: true },
-    { key: 'BR', label: 'Cheque Received', hint: 'Received into a bank account', isBank: true, isPayment: false },
-  ];
+  { key: 'CP', label: 'Cash Payment', hint: 'Money paid out in cash', isBank: false, isPayment: true },
+  { key: 'CR', label: 'Cash Received', hint: 'Money received in cash', isBank: false, isPayment: false },
+  { key: 'BP', label: 'Cheque Payment', hint: 'Paid from a bank account', isBank: true, isPayment: true },
+  { key: 'BR', label: 'Cheque Received', hint: 'Received into a bank account', isBank: true, isPayment: false },
+];
 
 // One grid row (FoxPro cursor code1)
 interface Row {
@@ -270,12 +270,14 @@ export default function VoucherPage() {
               type="button"
               onClick={() => changeType(t.key)}
               disabled={!!editNo && !active}
-              className={`flex items-center gap-3 rounded-xl border bg-white p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${active ? 'border-indigo-500 ring-4 ring-indigo-500/10' : 'border-slate-200 hover:border-indigo-300'
-                }`}
+              className={`flex items-center gap-3 rounded-xl border bg-white p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                active ? 'border-indigo-500 ring-4 ring-indigo-500/10' : 'border-slate-200 hover:border-indigo-300'
+              }`}
             >
               <div
-                className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${t.isPayment ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'
-                  }`}
+                className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                  t.isPayment ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'
+                }`}
               >
                 <Medium className="h-5 w-5" />
                 <Icon className="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-white p-0.5 shadow" />
@@ -459,8 +461,9 @@ export default function VoucherPage() {
                           value={row.amount}
                           placeholder="0.00"
                           onChange={(e) => updateRow(row.key, { amount: e.target.value })}
-                          className={`${cellClass} text-right font-medium tabular-nums ${problem.startsWith('Enter') ? 'border-red-300 bg-red-50/40' : ''
-                            }`}
+                          className={`${cellClass} text-right font-medium tabular-nums ${
+                            problem.startsWith('Enter') ? 'border-red-300 bg-red-50/40' : ''
+                          }`}
                         />
                       </td>
                       <td className="px-1 py-1.5 text-center">
@@ -555,7 +558,7 @@ interface Props {
 }
 
 // Searchable account box: type part of a name or a code, pick with mouse or keyboard
-function AccountPicker({ ledgers, value, onSelect, invalid, label }: Props) {
+export function AccountPicker({ ledgers, value, onSelect, invalid, label }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
@@ -592,8 +595,8 @@ function AccountPicker({ ledgers, value, onSelect, invalid, label }: Props) {
     const q = query.trim().toLowerCase();
     const list = q
       ? ledgers.filter(
-        (l) => l.name.toLowerCase().includes(q) || l.code.startsWith(q) || l.groupName.toLowerCase().includes(q),
-      )
+          (l) => l.name.toLowerCase().includes(q) || l.code.startsWith(q) || l.groupName.toLowerCase().includes(q),
+        )
       : ledgers;
     return list.slice(0, MAX_RESULTS);
   }, [ledgers, query]);
@@ -634,12 +637,13 @@ function AccountPicker({ ledgers, value, onSelect, invalid, label }: Props) {
     <div>
       <div
         ref={boxRef}
-        className={`flex h-9 items-center gap-2 rounded-md border px-2 transition ${open
+        className={`flex h-9 items-center gap-2 rounded-md border px-2 transition ${
+          open
             ? 'border-indigo-500 bg-white ring-2 ring-indigo-500/10'
             : invalid
               ? 'border-red-300 bg-red-50/40'
               : 'border-transparent hover:border-slate-200'
-          }`}
+        }`}
       >
         {open && <Search className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
         <input

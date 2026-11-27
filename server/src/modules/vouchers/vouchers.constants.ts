@@ -15,3 +15,7 @@ export const NO_PROJECT = '000000'; // FoxPro used 000000 for "no project on thi
 export const CASH_TYPE = 1; // lcodes.codesign
 export const BANK_TYPE = 2;
 export const LEDGER_LEVEL = 3; // lcodes.ledlabel
+
+// Journal voucher (FoxPro form jventry): prefix JR, vtype 6.
+// Identified by number + date; numbers restart each day, as in the old data.
+export const JOURNAL = { prefix: 'JR', vtype: 6, label: 'Journal' };

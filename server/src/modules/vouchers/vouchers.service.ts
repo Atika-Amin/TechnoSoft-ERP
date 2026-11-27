@@ -1,9 +1,11 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { TYPE_OF } from '../accounts/accounts.codes.js';
+import type { JournalLineDto, SaveJournalDto } from './dto/save-journal.dto.js';
 import type { SaveVoucherDto } from './dto/save-voucher.dto.js';
 import {
   BANK_TYPE,
   CASH_TYPE,
+  JOURNAL,
   LEDGER_LEVEL,
   NO_PROJECT,
   TYPE_INFO,
@@ -179,6 +181,188 @@ export class VouchersService {
         project: projectAccount,
       };
     });
+  }
+
+  // ── Journal voucher ──────────────────────────────────────────────
+
+  async nextJournalNo(date: string, fy: FiscalYear) {
+    const day = this.dayInYear(date, fy);
+    const last = await this.repo.lastVoucherNo(JOURNAL.prefix, day, day);
+    const next = last ? Number(last.slice(2)) + 1 : 1;
+    return { voucherNo: JOURNAL.prefix + pad5(next) };
+  }
+
+  // FoxPro jvtxt: rebuild the grid from the trction pairs of one journal (number + date)
+  async findJournal(voucherNo: string, date: string, fy: FiscalYear) {
+    const vno = voucherNo.toUpperCase();
+    const day = this.dayInYear(date, fy);
+    const rows = await this.repo.findRows({ voucherNo: vno, from: day, to: day });
+    if (!rows.length) throw new NotFoundException(`Journal ${vno} was not found on ${date}`);
+
+    const [accounts, jobs] = await Promise.all([
+      this.repo.findAccountsByCodes([...new Set(rows.flatMap((r) => [r.debitCode, r.creditCode]))]),
+      this.repo.findProjects(),
+    ]);
+    const nameOf = new Map(accounts.map((a) => [a.code, a.name]));
+    const jobByAccount = new Map(jobs.map((j) => [j.accountCode, j.code])); // project ledger → job
+    const jobOn = (projectAccount: string) => jobByAccount.get(projectAccount) ?? null;
+    const line = (code: string, debit: number, credit: number, remarks: string, jobCode: string | null) => ({
+      accountCode: code,
+      accountName: nameOf.get(code) ?? '',
+      debit,
+      credit,
+      remarks,
+      jobCode,
+    });
+
+    // Which side holds the single account? (one debit → many credits, or many debits → one credit)
+    const first = rows[0];
+    const sameDebit = rows.every((r) => r.debitCode === first.debitCode);
+    const sameCredit = rows.every((r) => r.creditCode === first.creditCode);
+    const total = rows.reduce((s, r) => s + r.amount.toNumber(), 0);
+
+    let lines;
+    if (sameDebit) {
+      // one debit, several credits
+      lines = [
+        line(first.debitCode, total, 0, first.debitRemark, jobOn(first.debitProject)),
+        ...rows.map((r) => line(r.creditCode, 0, r.amount.toNumber(), r.creditRemark, jobOn(r.creditProject))),
+      ];
+    } else if (sameCredit) {
+      // several debits, one credit
+      lines = [
+        ...rows.map((r) => line(r.debitCode, r.amount.toNumber(), 0, r.debitRemark, jobOn(r.debitProject))),
+        line(first.creditCode, 0, total, first.creditRemark, jobOn(first.creditProject)),
+      ];
+    } else {
+      // Older data that doesn't follow the pattern: show each pair as a debit line + a credit line
+      lines = rows.flatMap((r) => [
+        line(r.debitCode, r.amount.toNumber(), 0, r.debitRemark, jobOn(r.debitProject)),
+        line(r.creditCode, 0, r.amount.toNumber(), r.creditRemark, jobOn(r.creditProject)),
+      ]);
+    }
+
+    return { voucherNo: vno, date: toIsoDate(first.date), lines };
+  }
+
+  async createJournal(dto: SaveJournalDto, fy: FiscalYear) {
+    const day = this.dayInYear(dto.date, fy);
+    let voucherNo: string;
+    if (dto.number) {
+      voucherNo = JOURNAL.prefix + pad5(Number(dto.number));
+      const existing = await this.repo.findRows({ voucherNo, from: day, to: day });
+      if (existing.length) {
+        throw new ConflictException(`${voucherNo} already exists on ${dto.date}. Open it to edit it, or use another number`);
+      }
+    } else {
+      voucherNo = (await this.nextJournalNo(dto.date, fy)).voucherNo;
+    }
+
+    const rows = await this.buildJournalRows(dto, voucherNo, day);
+    await this.repo.replace(null, rows);
+    return this.summary(voucherNo, JOURNAL.label, rows);
+  }
+
+  async updateJournal(voucherNo: string, dto: SaveJournalDto, fy: FiscalYear) {
+    const vno = voucherNo.toUpperCase();
+    const day = this.dayInYear(dto.date, fy);
+    const filter: VoucherFilter = { voucherNo: vno, from: day, to: day }; // FoxPro: voucher == actvoucher .and. vdate == thisdate
+    if (!(await this.repo.findRows(filter)).length) {
+      throw new NotFoundException(`Journal ${vno} was not found on ${dto.date}`);
+    }
+    const rows = await this.buildJournalRows(dto, vno, day);
+    await this.repo.replace(filter, rows);
+    return this.summary(vno, JOURNAL.label, rows);
+  }
+
+  // FoxPro post(): one side has a single account; every line on the other side becomes one trction row
+  private async buildJournalRows(dto: SaveJournalDto, voucherNo: string, day: Date) {
+    const cents = (n: number) => Math.round(n * 100);
+
+    dto.lines.forEach((l, i) => {
+      if ((l.debit > 0) === (l.credit > 0)) {
+        throw new BadRequestException(`Line ${i + 1}: enter either a debit or a credit amount`);
+      }
+    });
+    const debits = dto.lines.filter((l) => l.debit > 0);
+    const credits = dto.lines.filter((l) => l.credit > 0);
+    if (!debits.length || !credits.length) {
+      throw new BadRequestException('A journal needs at least one debit line and one credit line');
+    }
+
+    const totalDebit = debits.reduce((s, l) => s + cents(l.debit), 0);
+    const totalCredit = credits.reduce((s, l) => s + cents(l.credit), 0);
+    if (totalDebit !== totalCredit) {
+      throw new BadRequestException(
+        `Debit (${money(totalDebit / 100)}) and credit (${money(totalCredit / 100)}) totals must be equal`,
+      );
+    }
+
+    // The rule that keeps every trction pair true. Remove this check later to allow many-to-many journals.
+    if (debits.length > 1 && credits.length > 1) {
+      throw new BadRequestException(
+        'One side must have a single account: one debit with several credits, or several debits with one credit',
+      );
+    }
+
+    // Accounts must be ledgers
+    const accounts = await this.repo.findAccountsByCodes([...new Set(dto.lines.map((l) => l.accountCode))]);
+    const accountOf = new Map(accounts.map((a) => [a.code, a]));
+    dto.lines.forEach((l, i) => {
+      const a = accountOf.get(l.accountCode);
+      if (!a || a.level !== LEDGER_LEVEL) throw new BadRequestException(`Line ${i + 1}: account ${l.accountCode} is not a ledger`);
+    });
+
+    const jobs = new Map((await this.repo.findProjects()).map((j) => [j.code, j]));
+    const jobOf = (l: JournalLineDto, i: number) => {
+      if (!l.jobCode) return undefined;
+      const job = jobs.get(l.jobCode);
+      if (!job) throw new BadRequestException(`Line ${i + 1}: project ${l.jobCode} not found`);
+      return job;
+    };
+
+    const singleIsDebit = debits.length === 1;
+    const single = singleIsDebit ? debits[0] : credits[0];
+    const many = singleIsDebit ? credits : debits;
+    const singleJob = jobOf(single, dto.lines.indexOf(single));
+    const dateVoucherNo = dto.date.replaceAll('-', '') + voucherNo;
+
+    return many.map((m) => {
+      const i = dto.lines.indexOf(m);
+      if (m.accountCode === single.accountCode) {
+        throw new BadRequestException(`Line ${i + 1}: the same account cannot be on both sides`);
+      }
+      const manyJob = jobOf(m, i);
+      const debitLine = singleIsDebit ? single : m;
+      const creditLine = singleIsDebit ? m : single;
+      const debitJob = singleIsDebit ? singleJob : manyJob;
+      const creditJob = singleIsDebit ? manyJob : singleJob;
+      const rowJob = manyJob ?? singleJob;
+
+      return {
+        date: day,
+        voucherNo,
+        debitCode: debitLine.accountCode,
+        creditCode: creditLine.accountCode,
+        amount: singleIsDebit ? m.credit : m.debit,
+        jobCode: rowJob?.code ?? '',
+        debitRemark: debitLine.remarks?.trim() ?? '',
+        creditRemark: creditLine.remarks?.trim() ?? '',
+        dateVoucherNo,
+        debitProject: debitJob?.accountCode ?? NO_PROJECT,
+        creditProject: creditJob?.accountCode ?? NO_PROJECT,
+        type: JOURNAL.vtype,
+        project: rowJob?.accountCode ?? '',
+      };
+    });
+  }
+
+  // FoxPro text2.Valid: "Date is not in Fiscal Year"
+  private dayInYear(date: string, fy: FiscalYear) {
+    const day = new Date(`${date}T00:00:00Z`);
+    if (Number.isNaN(day.getTime())) throw new BadRequestException('Date must be a valid date');
+    if (day < fy.from || day > fy.to) throw new BadRequestException(`Date must be inside the working year (${fy.label})`);
+    return day;
   }
 
   private summary(voucherNo: string, label: string, rows: { amount: number }[]) {

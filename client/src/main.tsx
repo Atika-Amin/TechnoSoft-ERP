@@ -6,6 +6,10 @@ import LandingPage from './features/landing/pages/LandingPage';
 import LoginPage from './features/auth/pages/LoginPage';
 import ChartOfAccountsPage from './features/accounts/pages/ChartOfAccountsPage';
 import VoucherPage from './features/vouchers/pages/VoucherPage';
+import JournalPage from './features/vouchers/pages/JournalPage';
+import ReportsPage from './features/reports/pages/ReportsPage';
+import SettingsPage from './features/settings/pages/SettingsPage';
+import RecordPage from './features/dataset/pages/RecordPage';
 import MainLayout from './layouts/MainLayout';
 import ProtectedRoute from './routes/ProtectedRoute';
 import './index.css';
@@ -21,6 +25,7 @@ const placeholder = (text: string) => (
 const router = createBrowserRouter([
   { path: '/', element: <LandingPage /> },
   { path: '/login', element: <LoginPage /> },
+  { path: '/record', element: <RecordPage /> }, // public: voice dataset collection
   {
     element: <ProtectedRoute />,
     children: [
@@ -30,6 +35,9 @@ const router = createBrowserRouter([
           { path: '/home', element: placeholder('Welcome to Technosoft. Choose a module from the sidebar.') },
           { path: '/accounts/chart', element: <ChartOfAccountsPage /> },
           { path: '/accounts/vouchers', element: <VoucherPage /> },
+          { path: '/accounts/journal', element: <JournalPage /> },
+          { path: '/accounts/reports', element: <ReportsPage /> },
+          { path: '/system/settings', element: <SettingsPage /> },
           { path: '*', element: placeholder('This page is coming soon.') },
         ],
       },

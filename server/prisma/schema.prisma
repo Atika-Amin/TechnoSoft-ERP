@@ -45,7 +45,7 @@ model Account {
   parentCode     String   @default("") @map("undergrp") @db.VarChar(20)      // code of the parent ("" for groups)
   parentLevel    Int      @default(0) @map("underlabel")                     // ledlabel of the parent
   ledgerType     Int      @default(5) @map("codesign")                       // 1 Cash, 2 Bank, 3 Store, 4 Party, 5 None, 6 Project
-  openingBalance Decimal  @default(0) @map("op_bal") @db.Decimal(18, 2)
+  openingBalance Decimal  @default(0) @map("op_bal") @db.Decimal(18, 2)  // positive = normal side (Dr for Assets/Expense, Cr for Liability/Income)
   totalDebit     Decimal  @default(0) @map("tot_debit") @db.Decimal(18, 2)   // filled by vouchers
   totalCredit    Decimal  @default(0) @map("tot_credit") @db.Decimal(18, 2)  // filled by vouchers
   balance        Decimal  @default(0) @map("thisbal") @db.Decimal(18, 2)     // filled by vouchers
@@ -102,4 +102,50 @@ model VoucherEntry {
   @@index([debitCode])
   @@index([creditCode])
   @@map("trction")
+}
+
+// FoxPro table: profile (company details, one row). Same column names as the old table.
+model CompanyProfile {
+  id        Int       @id @default(autoincrement())                 // new: row id
+  name      String    @default("") @map("c_name") @db.NVarChar(255) // company name, printed on reports
+  address1  String    @default("") @map("add1") @db.NVarChar(255)
+  address2  String    @default("") @map("add2") @db.NVarChar(255)
+  address3  String    @default("") @map("add3") @db.NVarChar(255)
+  address4  String    @default("") @map("add4") @db.NVarChar(255)
+  address5  String    @default("") @map("add5") @db.NVarChar(255)
+  nature    String    @default("") @map("nature") @db.NVarChar(255) // type of business
+  firstDate DateTime? @map("f_date") @db.Date
+  file      String    @default("") @map("file") @db.NVarChar(255)
+  phone     String    @default("") @map("phone") @db.VarChar(100)
+  picture   String    @default("") @map("picture") @db.NVarChar(255)
+  yearStart DateTime? @map("cf_date") @db.Date                       // fiscal year start
+  yearEnd   DateTime? @map("cl_date") @db.Date                       // fiscal year end
+
+  @@map("profile")
+}
+
+// New table (not in FoxPro): voice recordings collected to train the Bangla voice-entry model.
+// Audio files live on disk (VOICE_DIR); this row keeps who spoke, what they were asked to say, and the correct answer.
+model VoiceSample {
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now()) @map("created_at")
+  speakerId   String   @map("speaker_id") @db.VarChar(36)   // random id kept in the speaker's browser
+  gender      String   @db.VarChar(10)
+  ageGroup    String   @map("age_group") @db.VarChar(10)
+  region      String   @db.NVarChar(50)
+  environment String   @db.VarChar(10)                       // quiet / noisy / outdoor
+  device      String   @db.VarChar(10)                       // phone / laptop / desktop
+  mode        String   @db.VarChar(10)                       // read = read a sentence, scenario = say it your way
+  seed        Int                                            // rebuilds the exact prompt
+  promptText  String   @map("prompt_text") @db.NVarChar(500)
+  transcript  String   @default("") @db.NVarChar(500)        // exact words (known for "read", filled later for "scenario")
+  label       String   @db.NVarChar(Max)                     // correct voucher as JSON
+  audioFile   String   @map("audio_file") @db.VarChar(100)
+  mimeType    String   @map("mime_type") @db.VarChar(50)
+  durationMs  Int      @map("duration_ms")
+  sizeBytes   Int      @map("size_bytes")
+  status      String   @default("new") @db.VarChar(10)       // new / ok / bad (after review)
+
+  @@index([speakerId])
+  @@map("voice_samples")
 }

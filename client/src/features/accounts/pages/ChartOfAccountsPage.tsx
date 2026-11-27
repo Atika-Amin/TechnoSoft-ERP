@@ -319,7 +319,11 @@ export default function ChartOfAccountsPage() {
                       onChange={(e) => set('openingBalance', Number(e.target.value))}
                       className={`${inputClass} text-right tabular-nums`}
                     />
-                    <p className="mt-1 text-xs text-slate-500">Positive = Debit, negative = Credit</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {parent?.nature === 'LIABILITY' || parent?.nature === 'INCOME'
+                        ? 'Credit balance (normal for this account). Use minus for a debit balance.'
+                        : 'Debit balance (normal for this account). Use minus for a credit balance.'}
+                    </p>
                   </div>
                 )}
               </div>

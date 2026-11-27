@@ -1,9 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  createJournal,
   createVoucher,
+  getNextJournalNo,
   getNextVoucherNo,
   getVoucherSetup,
+  updateJournal,
   updateVoucher,
+  type SaveJournalInput,
   type SaveVoucherInput,
   type VoucherType,
 } from '../api/vouchers.api';
@@ -25,5 +29,18 @@ export function useSaveVoucher() {
     mutationFn: ({ input, editNo }: { input: SaveVoucherInput; editNo: string | null }) =>
       editNo ? updateVoucher(editNo, input) : createVoucher(input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['voucher-next'] }),
+  });
+}
+
+// Journal numbers restart each day, so the next number depends on the date
+export const useNextJournalNo = (date: string, enabled: boolean) =>
+  useQuery({ queryKey: ['journal-next', date], queryFn: () => getNextJournalNo(date), enabled });
+
+export function useSaveJournal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ input, editNo }: { input: SaveJournalInput; editNo: string | null }) =>
+      editNo ? updateJournal(editNo, input) : createJournal(input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['journal-next'] }),
   });
 }
